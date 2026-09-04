@@ -1,0 +1,69 @@
+/*
+ * Engineering Physics Laboratory Calculator - Print & PDF Stylesheet
+ */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  #app-sidebar,
+  .top-navbar,
+  .panel-toolbar,
+  .table-footer-bar,
+  .modal-backdrop,
+  .btn,
+  .sidebar-toggle-btn {
+    display: none !important;
+  }
+
+  #app-root, #app-main, .workbench-content {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .exp-banner-card,
+  .panel-card,
+  .results-card-container {
+    box-shadow: none !important;
+    border: 1px solid #cccccc !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
+    margin-bottom: 20px !important;
+  }
+
+  .analysis-workbench-grid {
+    display: block !important;
+  }
+
+  .lab-data-table {
+    border: 1px solid #333333 !important;
+  }
+
+  .lab-data-table th, .lab-data-table td {
+    border: 1px solid #333333 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .cell-input {
+    border: none !important;
+    color: #000000 !important;
+  }
+
+  .graph-container {
+    border: 1px solid #999999 !important;
+    page-break-inside: avoid;
+  }
+}
