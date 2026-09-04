@@ -35,16 +35,16 @@
   --accent-rose: #f43f5e;
 
   /* Modern typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+  --font-sans: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", Consolas, Menlo, monospace;
 
-  --radius-sm: 7px;
-  --radius-md: 11px;
-  --radius-lg: 15px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-full: 9999px;
 
-  --shadow-card: 0 10px 30px -5px rgba(2, 6, 23, 0.6), 0 0 20px 0 rgba(79, 101, 142, 0.1);
-  --shadow-btn: 0 4px 18px rgba(79, 70, 229, 0.35);
+  --shadow-card: 0 16px 36px -6px rgba(2, 6, 23, 0.75), 0 0 24px 0 rgba(99, 102, 241, 0.12);
+  --shadow-btn: 0 4px 20px rgba(79, 70, 229, 0.45);
 }
 
 * {
@@ -330,7 +330,36 @@ body {
 .top-navbar-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.telemetry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 13px;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6ee7b7;
+  letter-spacing: 0.3px;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.15);
+}
+
+.telemetry-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: telemetryPulse 2s infinite ease-in-out;
+}
+
+@keyframes telemetryPulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 8px #10b981; }
+  50% { opacity: 0.35; transform: scale(0.85); box-shadow: 0 0 2px #10b981; }
 }
 
 /* Action Buttons */
@@ -792,6 +821,29 @@ body {
   font-size: 15px;
   font-weight: 700;
   color: #ffffff;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.modal-close-btn:hover {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fda4af;
+  border-color: rgba(244, 63, 94, 0.4);
+  transform: rotate(90deg);
 }
 
 .modal-body {

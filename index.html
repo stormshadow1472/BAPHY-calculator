@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
@@ -65,6 +65,10 @@
           </div>
         </div>
         <div class="top-navbar-actions">
+          <div class="telemetry-badge">
+            <span class="telemetry-pulse"></span>
+            <span class="telemetry-text">Auto-Engine Calibrated</span>
+          </div>
           <button class="btn btn-secondary" id="btn-reset-data" title="Restore factory experimental dataset">
             <i class="fas fa-undo"></i> Reset Sample Data
           </button>
@@ -205,6 +209,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3><i class="fas fa-file-signature text-cyan-400"></i> Generate Laboratory Report</h3>
+        <button class="modal-close-btn" id="btn-close-report" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <p style="font-size: 12px; color: var(--text-secondary);">
@@ -243,6 +248,7 @@
     <div class="modal-window">
       <div class="modal-header">
         <h3><i class="fas fa-paste text-cyan-400"></i> Paste Data from Excel or Google Sheets</h3>
+        <button class="modal-close-btn" id="btn-close-paste" aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">
         <p style="font-size: 12px; color: var(--text-secondary);">

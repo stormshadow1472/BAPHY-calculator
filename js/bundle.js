@@ -505,15 +505,18 @@
   }
 
   // ==========================================
-  // 3. COMPUTATIONAL ENGINES
+  // 3. COMPUTATIONAL ENGINES (ALL 12 SYLLABUS EXPERIMENTS)
   // ==========================================
   const EXPERIMENT_CALCULATORS = {
+    // ----------------------------------------------------
+    // 1. SCREW GAUGE
+    // ----------------------------------------------------
     screw_gauge: (rows, globals) => {
       const pitch = parseFloat(globals.pitch_mm) || 1.0;
       const divisions = parseFloat(globals.circular_divisions) || 100;
-      const lc = pitch / divisions;
+      const lc = pitch / divisions; // 0.01 mm
       const zeDiv = parseFloat(globals.zero_error_div) || 0;
-      const zc = -(zeDiv * lc);
+      const zc = -(zeDiv * lc); // Zero correction in mm
 
       const tableRows = [];
       const crValues = [];
@@ -521,12 +524,19 @@
       rows.forEach(row => {
         const psr = parseFloat(row.psr);
         const hsc = parseFloat(row.hsc);
+
         if (!isNaN(psr) && !isNaN(hsc)) {
           const hsr = hsc * lc;
           const tr = psr + hsr;
           const cr = tr + zc;
           crValues.push(cr);
-          tableRows.push({ ...row, hsr: hsr.toFixed(3), tr: tr.toFixed(3), cr: cr.toFixed(3) });
+
+          tableRows.push({
+            ...row,
+            hsr: hsr.toFixed(3),
+            tr: tr.toFixed(3),
+            cr: cr.toFixed(3)
+          });
         } else {
           tableRows.push({ ...row, hsr: '—', tr: '—', cr: '—' });
         }
@@ -538,10 +548,13 @@
       return {
         tableRows,
         plot: {
+          isPrecisionBand: true,
+          points: crValues.map((v, i) => ({ x: i + 1, y: v, label: `Trial ${i + 1}: ${v.toFixed(3)} mm` })),
+          mean: meanThickness,
+          stdDev: stdDev,
+          unit: 'mm',
           xLabel: 'Observation Trial (#)',
-          yLabel: 'Corrected Thickness (mm)',
-          points: crValues.map((v, i) => ({ x: i + 1, y: v, label: `Trial ${i+1}: ${v.toFixed(3)} mm` })),
-          isCurve: true
+          yLabel: 'Corrected Thickness (mm)'
         },
         results: [
           { label: 'Mean Specimen Thickness', value: crValues.length > 0 ? meanThickness.toFixed(3) : '—', unit: 'mm', uncertainty: `±${stdDev.toFixed(3)}` },
@@ -552,21 +565,32 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 2. VERNIER CALIPERS
+    // ----------------------------------------------------
     vernier_calipers: (rows, globals) => {
-      const lc = 0.01;
+      const lc = 0.01; // cm (0.1 mm)
       const zc = parseFloat(globals.zero_correction_cm) || 0.00;
+
       const tableRows = [];
       const crValues = [];
 
       rows.forEach(row => {
         const msr = parseFloat(row.msr);
         const vsc = parseFloat(row.vsc);
+
         if (!isNaN(msr) && !isNaN(vsc)) {
           const vsr = vsc * lc;
           const tr = msr + vsr;
           const cr = tr + zc;
           crValues.push(cr);
-          tableRows.push({ ...row, vsr: vsr.toFixed(3), tr: tr.toFixed(3), cr: cr.toFixed(3) });
+
+          tableRows.push({
+            ...row,
+            vsr: vsr.toFixed(3),
+            tr: tr.toFixed(3),
+            cr: cr.toFixed(3)
+          });
         } else {
           tableRows.push({ ...row, vsr: '—', tr: '—', cr: '—' });
         }
@@ -578,10 +602,13 @@
       return {
         tableRows,
         plot: {
-          xLabel: 'Observation Index',
-          yLabel: 'Corrected Dimension (cm)',
+          isPrecisionBand: true,
           points: crValues.map((v, i) => ({ x: i + 1, y: v, label: `${v.toFixed(3)} cm` })),
-          isCurve: true
+          mean: meanDim,
+          stdDev: stdDev,
+          unit: 'cm',
+          xLabel: 'Observation Index',
+          yLabel: 'Corrected Dimension (cm)'
         },
         results: [
           { label: 'Mean Measured Dimension', value: crValues.length > 0 ? meanDim.toFixed(3) : '—', unit: 'cm', uncertainty: `±${stdDev.toFixed(3)}` },
@@ -592,48 +619,79 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 3. TRAVELLING MICROSCOPE (CAPILLARY BORE RADIUS)
+    // ----------------------------------------------------
     travelling_microscope: (rows) => {
-      const lc = 0.001;
+      const lc = 0.001; // cm
       const tableRows = [];
       const readings = [];
 
       rows.forEach(row => {
         const msr = parseFloat(row.msr);
         const vsc = parseFloat(row.vsc);
+
         if (!isNaN(msr) && !isNaN(vsc)) {
           const vsr = vsc * lc;
           const reading = msr + vsr;
           readings.push(reading);
-          tableRows.push({ ...row, vsr: vsr.toFixed(4), reading: reading.toFixed(4) });
+
+          tableRows.push({
+            ...row,
+            vsr: vsr.toFixed(4),
+            reading: reading.toFixed(4)
+          });
         } else {
           tableRows.push({ ...row, vsr: '—', reading: '—' });
         }
       });
 
-      let internalDiam = null;
-      let radius = null;
-      if (readings.length >= 2) {
-        internalDiam = Math.abs(readings[1] - readings[0]);
-        radius = internalDiam / 2;
+      // According to official CHAMP Lab Manual:
+      // Horizontal diameter: DH = |R2 - R1|
+      // Vertical diameter: DV = |R4 - R3|
+      // Mean diameter: D = (DH + DV) / 2
+      // Bore radius: r = D / 2
+      let dH = null, dV = null, meanD = null, radius = null, area = null;
+      if (readings.length >= 4) {
+        dH = Math.abs(readings[1] - readings[0]);
+        dV = Math.abs(readings[3] - readings[2]);
+        meanD = (dH + dV) / 2;
+        radius = meanD / 2;
+        area = Math.PI * Math.pow(radius, 2);
+      } else if (readings.length >= 2) {
+        dH = Math.abs(readings[1] - readings[0]);
+        dV = dH;
+        meanD = dH;
+        radius = meanD / 2;
+        area = Math.PI * Math.pow(radius, 2);
       }
 
       return {
         tableRows,
         plot: {
-          xLabel: 'Measurement Point',
-          yLabel: 'Microscope Scale Reading (cm)',
-          points: readings.map((r, i) => ({ x: i + 1, y: r, label: `${r.toFixed(4)} cm` })),
-          isCurve: true
+          isBore: true,
+          dH: dH || 0.20,
+          dV: dV || 0.20,
+          meanD: meanD || 0.20,
+          radius: radius || 0.10,
+          area: area || (Math.PI * 0.01),
+          readings: readings
         },
         results: [
-          { label: 'Internal Bore Diameter (D)', value: internalDiam !== null ? internalDiam.toFixed(4) : '—', unit: 'cm', formula: '|R₂ - R₁|' },
+          { label: 'Mean Bore Diameter (D)', value: meanD !== null ? meanD.toFixed(4) : '—', unit: 'cm', formula: '(DH + DV) / 2' },
+          { label: 'Horizontal Diameter (DH)', value: dH !== null ? dH.toFixed(4) : '—', unit: 'cm', formula: '|R₂ - R₁|' },
+          { label: 'Vertical Diameter (DV)', value: dV !== null ? dV.toFixed(4) : '—', unit: 'cm', formula: '|R₄ - R₃|' },
           { label: 'Internal Bore Radius (r)', value: radius !== null ? radius.toFixed(4) : '—', unit: 'cm', formula: 'D / 2' },
           { label: 'Radius in Millimeters', value: radius !== null ? (radius * 10).toFixed(3) : '—', unit: 'mm' },
-          { label: 'Least Count (LC)', value: '0.001', unit: 'cm', formula: '1 MSD - 1 VSD' }
+          { label: 'Cross-Sectional Area (A)', value: area !== null ? (area * 100).toFixed(3) : '—', unit: 'mm²', formula: 'π·r²' },
+          { label: 'Least Count (LC)', value: '0.001', unit: 'cm', formula: '1 MSD - 1 VSD (50 VSD = 49 MSD)' }
         ]
       };
     },
 
+    // ----------------------------------------------------
+    // 4. SPECTROMETER (PRISM ANGLE & REFRACTIVE INDEX)
+    // ----------------------------------------------------
     spectrometer: (rows, globals) => {
       const tableRows = [];
       const trVals = [];
@@ -641,39 +699,73 @@
       rows.forEach(row => {
         const msr = parseFloat(row.msr_deg);
         const vsc = parseFloat(row.vsc_min);
+
         if (!isNaN(msr) && !isNaN(vsc)) {
           const tr = msr + (vsc / 60);
           trVals.push(tr);
-          tableRows.push({ ...row, tr_deg: `${Math.floor(tr)}° ${(Math.round((tr % 1) * 60))}'` });
+          tableRows.push({
+            ...row,
+            tr_deg: `${Math.floor(tr)}° ${(Math.round((tr % 1) * 60))}'`
+          });
         } else {
           tableRows.push({ ...row, tr_deg: '—' });
         }
       });
 
-      let prismAngle = 60.0;
-      if (trVals.length >= 2) {
+      // In official CHAMP manual:
+      // Vernier 1: A_V1 = |R2 - R1| / 2
+      // Vernier 2: A_V2 = |R4 - R3| / 2
+      // Mean A = (A_V1 + A_V2) / 2
+      let A_V1 = 60.0, A_V2 = 60.0, meanA = 60.0;
+      if (trVals.length >= 4) {
+        let diff1 = Math.abs(trVals[1] - trVals[0]);
+        if (diff1 > 180) diff1 = 360 - diff1;
+        A_V1 = diff1 / 2;
+
+        let diff2 = Math.abs(trVals[3] - trVals[2]);
+        if (diff2 > 180) diff2 = 360 - diff2;
+        A_V2 = diff2 / 2;
+
+        meanA = (A_V1 + A_V2) / 2;
+      } else if (trVals.length >= 2) {
         let diff = Math.abs(trVals[1] - trVals[0]);
         if (diff > 180) diff = 360 - diff;
-        prismAngle = diff / 2;
+        meanA = diff / 2;
+        A_V1 = meanA;
+        A_V2 = meanA;
       }
 
       const deltaM = parseFloat(globals.delta_m_deg) || 49.5;
-      const A_rad = (prismAngle * Math.PI) / 180;
+      const A_rad = (meanA * Math.PI) / 180;
       const D_rad = (deltaM * Math.PI) / 180;
       const mu = Math.sin((A_rad + D_rad) / 2) / Math.sin(A_rad / 2);
+      const critAngle_deg = (Math.asin(1 / mu) * 180) / Math.PI;
 
       return {
         tableRows,
-        plot: null,
+        plot: {
+          isPrism: true,
+          A: meanA,
+          deltaM: deltaM,
+          mu: mu,
+          AV1: A_V1,
+          AV2: A_V2
+        },
         results: [
-          { label: 'Calculated Prism Angle (A)', value: prismAngle.toFixed(2), unit: '°', formula: '|R₁ - R₂| / 2' },
+          { label: 'Mean Prism Angle (A)', value: meanA.toFixed(2), unit: '°', formula: '(A_V1 + A_V2) / 2' },
+          { label: 'Prism Angle from Vernier 1', value: A_V1.toFixed(2), unit: '°', formula: '|R₂ - R₁| / 2' },
+          { label: 'Prism Angle from Vernier 2', value: A_V2.toFixed(2), unit: '°', formula: '|R₄ - R₃| / 2' },
           { label: 'Angle of Minimum Deviation (δm)', value: deltaM.toFixed(2), unit: '°' },
           { label: 'Refractive Index of Glass (µ)', value: mu.toFixed(4), formula: 'sin((A + δm)/2) / sin(A/2)' },
-          { label: 'Instrument Least Count', value: '1’', unit: 'arcminute' }
+          { label: 'Critical Angle (θc)', value: critAngle_deg.toFixed(2), unit: '°', formula: 'arcsin(1 / µ)' },
+          { label: 'Instrument Least Count', value: '1’', unit: 'arcminute', formula: '1 MSD / 30' }
         ]
       };
     },
 
+    // ----------------------------------------------------
+    // 5. SOLAR CELL (CHAMP EXPT 1)
+    // ----------------------------------------------------
     solar_cell: (rows, globals) => {
       const pointsIV = [];
       const pointsPV = [];
@@ -683,7 +775,7 @@
 
       rows.forEach((row, i) => {
         const V = parseFloat(row.voltage);
-        const I = parseFloat(row.current);
+        const I = parseFloat(row.current); // mA
 
         if (!isNaN(V) && !isNaN(I)) {
           const P_mW = V * I;
@@ -691,8 +783,11 @@
           pointsPV.push({ x: V, y: P_mW, id: i });
 
           if (P_mW > Pmax) {
-            Pmax = P_mW; Vmp = V; Imp = I;
+            Pmax = P_mW;
+            Vmp = V;
+            Imp = I;
           }
+
           tableRows.push({ ...row, power_mW: P_mW.toFixed(2) });
         } else {
           tableRows.push({ ...row, power_mW: '—' });
@@ -703,8 +798,8 @@
       const Isc = pointsIV.length > 0 ? Math.max(...pointsIV.map(p => p.y)) : 0;
       const fillFactor = (Voc > 0 && Isc > 0) ? Pmax / (Voc * Isc) : 0;
 
-      const I0 = parseFloat(globals.incident_intensity) || 100.0;
-      const Area = parseFloat(globals.cell_area) || 0.0004;
+      const I0 = parseFloat(globals.incident_intensity) || 100.0; // W/m^2
+      const Area = parseFloat(globals.cell_area) || 0.0004; // m^2 (4 cm^2)
       const Pin_mW = I0 * Area * 1000;
       const efficiency = Pin_mW > 0 ? (Pmax / Pin_mW) * 100 : 0;
 
@@ -717,19 +812,25 @@
             { name: 'I-V Curve', points: pointsIV, color: '#06b6d4' },
             { name: 'P-V Curve', points: pointsPV, color: '#f59e0b' }
           ],
-          isCurve: true
+          isCurve: true,
+          mpp: { V: Vmp, I: Imp, P: Pmax }
         },
         results: [
           { label: 'Open-Circuit Voltage (Voc)', value: Voc.toFixed(3), unit: 'V' },
           { label: 'Short-Circuit Current (Isc)', value: Isc.toFixed(2), unit: 'mA' },
-          { label: 'Maximum Power Output (Pmax)', value: Pmax.toFixed(2), unit: 'mW', formula: 'Vmax × Imax' },
+          { label: 'Maximum Power Output (Pmax)', value: Pmax.toFixed(2), unit: 'mW', formula: 'Vmp × Imp' },
+          { label: 'Voltage at Max Power (Vmp)', value: Vmp.toFixed(3), unit: 'V' },
+          { label: 'Current at Max Power (Imp)', value: Imp.toFixed(2), unit: 'mA' },
           { label: 'Fill Factor (FF)', value: fillFactor.toFixed(3), formula: 'Pmax / (Voc × Isc)' },
           { label: 'Power Conversion Efficiency (η)', value: efficiency.toFixed(2) + '%', formula: '[Pmax / (A · I₀)] × 100%' },
-          { label: 'Configuration Mode', value: (globals.config_mode || 'single').toUpperCase() }
+          { label: 'Circuit Configuration', value: (globals.config_mode || 'single').toUpperCase() }
         ]
       };
     },
 
+    // ----------------------------------------------------
+    // 6. PLANCK'S CONSTANT (CHAMP EXPT 2)
+    // ----------------------------------------------------
     plancks_constant_led: (rows) => {
       const points = [];
       const tableRows = [];
@@ -740,8 +841,8 @@
         const vb = parseFloat(row.vb);
 
         if (!isNaN(lambda_nm) && !isNaN(vb) && lambda_nm > 0 && vb > 0) {
-          const invLambda_m = 1 / (lambda_nm * 1e-9);
-          const invLambda_um = 1000 / lambda_nm;
+          const invLambda_m = 1 / (lambda_nm * 1e-9); // m^-1
+          const invLambda_um = 1000 / lambda_nm; // um^-1
           const h_i = (vb * (lambda_nm * 1e-9) * CONSTANTS.e) / CONSTANTS.c;
 
           points.push({ x: invLambda_m, y: vb, id: i });
@@ -772,7 +873,7 @@
         plot: {
           xLabel: 'Inverse Wavelength 1/λ (m⁻¹)',
           yLabel: 'Barrier Potential V_B (V)',
-          points: points.map(p => ({ x: p.x, y: p.y, label: `1/λ=${p.x.toExponential(2)}, V_B=${p.y.toFixed(2)}V` })),
+          points: points.map(p => ({ x: p.x, y: p.y, label: `1/λ=${p.x.toExponential(2)} m⁻¹, V_B=${p.y.toFixed(2)} V` })),
           regression: reg,
           fitFunction: reg.isValid ? (x) => reg.slope * x + reg.intercept : null
         },
@@ -786,6 +887,9 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 7. PHOTODIODE (CHAMP EXPT 3)
+    // ----------------------------------------------------
     photodiode: (rows, globals) => {
       const pOpt_mW = parseFloat(globals.optical_power_mW) || 0.50;
       const pointsDark = [];
@@ -838,6 +942,9 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 8. QUANTUM TUNNELING (CHAMP EXPT 4)
+    // ----------------------------------------------------
     quantum_tunneling: (rows, globals) => {
       const V0 = parseFloat(globals.barrier_height_eV) || 10.0;
       const a_ang = parseFloat(globals.barrier_width_angstrom) || 1.5;
@@ -876,7 +983,7 @@
         plot: {
           xLabel: 'Particle Energy E (eV)',
           yLabel: 'Transmission Probability T',
-          points: points.map(p => ({ x: p.x, y: p.y, label: `E=${p.x}eV, T=${p.y.toExponential(2)}` })),
+          points: points.map(p => ({ x: p.x, y: p.y, label: `E=${p.x} eV, T=${p.y.toExponential(2)}` })),
           isCurve: true
         },
         results: [
@@ -887,10 +994,13 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 9. ELECTRON DIFFRACTION (CHAMP EXPT 5)
+    // ----------------------------------------------------
     electron_diffraction: (rows, globals) => {
       const L_m = (parseFloat(globals.screen_distance_L_mm) || 135.0) * 1e-3;
-      const d1_m = (parseFloat(globals.d_outer_pm) || 123.0) * 1e-12;
-      const d2_m = (parseFloat(globals.d_inner_pm) || 213.0) * 1e-12;
+      const d1_m = (parseFloat(globals.d_outer_pm) || 123.0) * 1e-12; // 123 pm
+      const d2_m = (parseFloat(globals.d_inner_pm) || 213.0) * 1e-12; // 213 pm
 
       const points = [];
       const tableRows = [];
@@ -932,7 +1042,7 @@
         plot: {
           xLabel: '1 / √V (V⁻¹/²)',
           yLabel: 'Ring Diameter D (m)',
-          points: points.map(p => ({ x: p.x, y: p.y, label: `1/√V=${p.x.toFixed(4)}, D=${(p.y*1000).toFixed(1)}mm` })),
+          points: points.map(p => ({ x: p.x, y: p.y, label: `1/√V=${p.x.toFixed(4)}, D=${(p.y * 1000).toFixed(1)} mm` })),
           regression: reg,
           fitFunction: reg.isValid ? (x) => reg.slope * x + reg.intercept : null
         },
@@ -946,10 +1056,16 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 10. HEISENBERG'S UNCERTAINTY PRINCIPLE (CHAMP EXPT 6)
+    // ----------------------------------------------------
     heisenberg_uncertainty: (rows, globals) => {
       const lambda_m = (parseFloat(globals.laser_wavelength_nm) || 650.0) * 1e-9;
       const tableRows = [];
       const ratios = [];
+      const pts = [];
+      const observedMinima = [];
+      const slitWidths = [];
 
       rows.forEach(row => {
         const m = parseFloat(row.order) || 1;
@@ -962,13 +1078,17 @@
           const theta_rad = Math.atan(a_m / D_m);
           const theta_deg = (theta_rad * 180) / Math.PI;
 
+          // Slit width d = m * lambda / sin(theta)
           const d_m = (m * lambda_m) / Math.sin(theta_rad);
           const dy = d_m;
           const dpy = (CONSTANTS.h / lambda_m) * Math.sin(theta_rad);
           const prod = dy * dpy;
-          const ratio = prod / CONSTANTS.h;
+          const ratio = prod / CONSTANTS.h; // ≈ 1
 
           ratios.push(ratio);
+          slitWidths.push(d_m * 1e6);
+          pts.push({ x: m, y: a_mm });
+          observedMinima.push({ m, a: a_mm, D: D_mm });
 
           tableRows.push({
             ...row,
@@ -982,18 +1102,33 @@
       });
 
       const meanRatio = computeMean(ratios);
+      const meanSlit_um = computeMean(slitWidths);
+      const meanD_mm = computeMean(observedMinima.map(o => o.D)) || 700;
+      const reg = computeLinearRegression(pts);
 
       return {
         tableRows,
-        plot: null,
+        plot: {
+          isDiffraction: true,
+          lambda_nm: lambda_m * 1e9,
+          D_mm: meanD_mm,
+          d_um: meanSlit_um || 120,
+          minima: observedMinima,
+          regression: reg
+        },
         results: [
           { label: 'Observed Product (Δy · Δpy / h)', value: ratios.length > 0 ? meanRatio.toFixed(3) : '—', formula: 'd·(h/λ)sinθ / h ≈ 1' },
+          { label: 'Mean Slit Width (d)', value: slitWidths.length > 0 ? meanSlit_um.toFixed(1) : '—', unit: 'µm', formula: 'm·λ / sin(θ)' },
           { label: 'Theoretical Bound (h / 4π)', value: (CONSTANTS.h / (4 * Math.PI)).toExponential(3), unit: 'J·s' },
+          { label: 'Heisenberg Linearity (R²)', value: reg.isValid ? reg.r2.toFixed(5) : '—' },
           { label: 'Laser Wavelength', value: (lambda_m * 1e9).toFixed(1), unit: 'nm' }
         ]
       };
     },
 
+    // ----------------------------------------------------
+    // 11. SINGLE QUBIT STATES & BLOCH SPHERE (CHAMP EXPT 7)
+    // ----------------------------------------------------
     single_qubit_bloch: (rows, globals) => {
       const gate = globals.active_gate || 'X';
       const tableRows = [];
@@ -1005,6 +1140,7 @@
         if (!isNaN(theta) && !isNaN(phi)) {
           const c = Math.cos(theta / 2);
           const s = Math.sin(theta / 2);
+
           const stateStr = `${c.toFixed(3)}|0⟩ + ${s.toFixed(3)}e^{i${phi.toFixed(2)}}|1⟩`;
           const norm = Math.pow(c, 2) + Math.pow(s, 2);
 
@@ -1054,11 +1190,16 @@
       };
     },
 
+    // ----------------------------------------------------
+    // 12. TWO-QUBIT STATES & ENTANGLEMENT (CHAMP EXPT 8)
+    // ----------------------------------------------------
     two_qubit_entanglement: (rows, globals) => {
       const tableRows = [];
       const gate = globals.target_gate || 'CNOT';
+      let activeState = '|00⟩';
+      let p00 = 1, p01 = 0, p10 = 0, p11 = 0, concurrence = 0, activeNature = 'Separable (Product)';
 
-      rows.forEach(row => {
+      rows.forEach((row, i) => {
         const state = (row.input_state || '').trim();
         let cnot = '—', swap = '—', nature = 'Separable (Product)', angles = '—';
 
@@ -1087,6 +1228,18 @@
           angles = 'θ₁=π/2, φ₁=0 ; θ₂=π/2, φ₂=0';
         }
 
+        if (i === 0 || state.includes('Bell') || (i === rows.length - 1 && !activeState.includes('1/√2'))) {
+          activeState = state;
+          activeNature = nature;
+          if (state === '|00⟩') { p00 = 1; p01 = 0; p10 = 0; p11 = 0; concurrence = 0; }
+          else if (state === '|01⟩') { p00 = 0; p01 = 1; p10 = 0; p11 = 0; concurrence = 0; }
+          else if (state === '|10⟩') { p00 = 0; p01 = 0; p10 = 1; p11 = 0; concurrence = 0; }
+          else if (state === '|11⟩') { p00 = 0; p01 = 0; p10 = 0; p11 = 1; concurrence = 0; }
+          else if (state.includes('00') && state.includes('11')) { p00 = 0.5; p01 = 0; p10 = 0; p11 = 0.5; concurrence = 1.0; }
+          else if (state.includes('01') && state.includes('10')) { p00 = 0; p01 = 0.5; p10 = 0.5; p11 = 0; concurrence = 1.0; }
+          else if (state.includes('1/2')) { p00 = 0.25; p01 = 0.25; p10 = 0.25; p11 = 0.25; concurrence = 0; }
+        }
+
         tableRows.push({
           ...row,
           cnot_result: cnot,
@@ -1098,18 +1251,26 @@
 
       return {
         tableRows,
-        plot: null,
+        plot: {
+          isQuantumBars: true,
+          stateName: activeState,
+          probs: [p00, p01, p10, p11],
+          concurrence: concurrence,
+          gate: gate,
+          nature: activeNature
+        },
         results: [
           { label: 'Active Two-Qubit Gate', value: gate, formula: gate === 'CNOT' ? 'CNOT|c, t⟩ = |c, t ⊕ c⟩' : 'SWAP|a, b⟩ = |b, a⟩' },
           { label: 'Hilbert Space Dimension', value: '4 (C⁴ = C² ⊗ C²)' },
-          { label: 'Bell State Entanglement', value: 'Concurrence C = 1.0 (Maximal)' }
+          { label: 'Representative State', value: activeState },
+          { label: 'Bell Entanglement Concurrence', value: concurrence > 0.5 ? 'C = 1.00 (Maximal)' : 'C = 0.00 (Separable)' }
         ]
       };
     }
   };
 
   // ==========================================
-  // 4. GRAPH ENGINE WITH BLOCH SPHERE
+  // 4. GRAPH ENGINE WITH FULL MULTI-EXPERIMENT VISUALIZATIONS
   // ==========================================
   class ScientificGraph {
     constructor(canvasElement, tooltipElement) {
@@ -1131,7 +1292,7 @@
         accentRose: '#f43f5e',
         pointBorder: '#38bdf8',
         residualLine: 'rgba(244, 63, 94, 0.55)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "JetBrains Mono", monospace'
+        fontFamily: '"Outfit", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       };
 
       this.padding = { top: 40, right: 40, bottom: 60, left: 75 };
@@ -1153,23 +1314,30 @@
       if (!this.canvas) return;
       const rect = this.canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      this.canvas.width = Math.max(300, rect.width * dpr);
-      this.canvas.height = Math.max(240, rect.height * dpr);
-      this.ctx.scale(dpr, dpr);
-      this.width = rect.width;
-      this.height = rect.height;
+      const w = rect.width || 600;
+      const h = rect.height || 400;
+
+      this.canvas.width = Math.round(w * dpr);
+      this.canvas.height = Math.round(h * dpr);
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.width = w;
+      this.height = h;
       this.render();
     }
 
     render() {
-      if (!this.width || !this.height) {
-        const rect = this.canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = (rect.width || 600) * dpr;
-        this.canvas.height = (rect.height || 400) * dpr;
-        this.ctx.scale(dpr, dpr);
-        this.width = rect.width || 600;
-        this.height = rect.height || 400;
+      if (!this.canvas) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = rect.width || 600;
+      const h = rect.height || 400;
+
+      if (!this.width || Math.abs(this.width - w) > 2 || Math.abs(this.height - h) > 2) {
+        this.canvas.width = Math.round(w * dpr);
+        this.canvas.height = Math.round(h * dpr);
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.width = w;
+        this.height = h;
       }
 
       const ctx = this.ctx;
@@ -1185,8 +1353,39 @@
         return;
       }
 
+      // 1. Single Qubit Bloch Sphere 3D
       if (this.data.isBloch) {
         this.drawBlochSphere();
+        return;
+      }
+
+      // 2. Travelling Microscope Capillary Bore Reticle
+      if (this.data.isBore) {
+        this.drawBoreCrossSection();
+        return;
+      }
+
+      // 3. Spectrometer Prism Minimum Deviation Curve
+      if (this.data.isPrism) {
+        this.drawPrismDevCurve();
+        return;
+      }
+
+      // 4. Heisenberg Single-Slit Fraunhofer Diffraction Envelope
+      if (this.data.isDiffraction) {
+        this.drawDiffractionPattern();
+        return;
+      }
+
+      // 5. Two-Qubit Quantum State Probabilities & Entanglement Bar Chart
+      if (this.data.isQuantumBars) {
+        this.drawQuantumBars();
+        return;
+      }
+
+      // 6. Screw Gauge & Vernier Calipers Precision Band
+      if (this.data.isPrecisionBand) {
+        this.drawPrecisionBand();
         return;
       }
 
@@ -1228,6 +1427,601 @@
         ctx.lineWidth = 2.5;
         ctx.stroke();
       }
+    }
+
+    drawPrecisionBand() {
+      const ctx = this.ctx;
+      const data = this.data;
+      const points = data.points || [];
+      const mean = data.mean || 0;
+      const stdDev = data.stdDev || 0;
+      const unit = data.unit || '';
+
+      this.computeBounds();
+      const span = Math.max(0.01, stdDev * 3);
+      this.bounds.minY = Math.min(this.bounds.minY, mean - span);
+      this.bounds.maxY = Math.max(this.bounds.maxY, mean + span);
+
+      this.drawGrid();
+      this.drawAxes();
+
+      const plotLeft = this.padding.left;
+      const plotRight = this.width - this.padding.right;
+
+      // 1. Shaded 1-sigma confidence band
+      if (stdDev > 0) {
+        const pyTop = this.yToPixel(mean + stdDev);
+        const pyBottom = this.yToPixel(mean - stdDev);
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+        ctx.fillRect(plotLeft, pyTop, plotRight - plotLeft, pyBottom - pyTop);
+
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, pyTop);
+        ctx.lineTo(plotRight, pyTop);
+        ctx.moveTo(plotLeft, pyBottom);
+        ctx.lineTo(plotRight, pyBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // 2. Mean line
+      const pyMean = this.yToPixel(mean);
+      ctx.strokeStyle = this.theme.accentCyan;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.5)';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(plotLeft, pyMean);
+      ctx.lineTo(plotRight, pyMean);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 3. Draw observation points with deviation stems
+      for (const p of points) {
+        const px = this.xToPixel(p.x);
+        const py = this.yToPixel(p.y);
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, pyMean);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = this.theme.accentAmber;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // 4. Telemetry Legend Badge
+      ctx.save();
+      ctx.font = `12px ${this.theme.fontFamily}`;
+      const badgeX = this.padding.left + 15;
+      const badgeY = this.padding.top + 15;
+      const text = `Mean μ = ${mean.toFixed(3)} ${unit}   |   Std Dev σ = ±${stdDev.toFixed(4)} ${unit}`;
+      const textW = ctx.measureText(text).width;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+      ctx.strokeRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+
+      ctx.fillStyle = this.theme.accentCyan;
+      ctx.fillRect(badgeX, badgeY - 5, 10, 10);
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, badgeX + 18, badgeY);
+      ctx.restore();
+    }
+
+    drawBoreCrossSection() {
+      const ctx = this.ctx;
+      const cx = this.width / 2;
+      const cy = this.height / 2 + 10;
+      const data = this.data;
+      const dH = data.dH || 0.20;
+      const dV = data.dV || 0.20;
+      const meanD = data.meanD || ((dH + dV) / 2);
+      const r = data.radius || (meanD / 2);
+      const area = data.area || (Math.PI * r * r);
+
+      const outerR = Math.min(this.width, this.height) * 0.38;
+      const boreR = Math.min(outerR * 0.65, Math.max(30, outerR * 0.55));
+
+      ctx.font = `bold 14px ${this.theme.fontFamily}`;
+      ctx.fillStyle = this.theme.accentCyan;
+      ctx.textAlign = 'center';
+      ctx.fillText('Travelling Microscope Eyepiece Reticle & Bore Geometry', cx, 26);
+
+      // 1. Outer capillary glass boundary
+      ctx.beginPath();
+      ctx.arc(cx, cy, outerR, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, outerR - 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(79, 101, 142, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 2. Inner Capillary Bore with water meniscus glow
+      const grad = ctx.createRadialGradient(cx - boreR * 0.2, cy - boreR * 0.2, boreR * 0.1, cx, cy, boreR);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
+      grad.addColorStop(0.7, 'rgba(14, 116, 144, 0.3)');
+      grad.addColorStop(1, 'rgba(2, 6, 23, 0.7)');
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, boreR, 0, 2 * Math.PI);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.6)';
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 3. Reticle Crosshairs (Eyepiece standard)
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx - outerR - 15, cy);
+      ctx.lineTo(cx + outerR + 15, cy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - outerR - 15);
+      ctx.lineTo(cx + outerR + 15);
+      ctx.stroke();
+
+      // Tick marks on crosshairs
+      for (let offset = -outerR; offset <= outerR; offset += 20) {
+        if (offset === 0) continue;
+        ctx.beginPath();
+        ctx.moveTo(cx + offset, cy - 4);
+        ctx.lineTo(cx + offset, cy + 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 4, cy + offset);
+        ctx.lineTo(cx + 4, cy + offset);
+        ctx.stroke();
+      }
+
+      // 4. Horizontal Diameter Dimension line
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - boreR, cy + boreR * 0.45);
+      ctx.lineTo(cx + boreR, cy + boreR * 0.45);
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.moveTo(cx - boreR, cy + boreR * 0.45);
+      ctx.lineTo(cx - boreR + 8, cy + boreR * 0.45 - 4);
+      ctx.lineTo(cx - boreR + 8, cy + boreR * 0.45 + 4);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + boreR, cy + boreR * 0.45);
+      ctx.lineTo(cx + boreR - 8, cy + boreR * 0.45 - 4);
+      ctx.lineTo(cx + boreR - 8, cy + boreR * 0.45 + 4);
+      ctx.fill();
+
+      ctx.font = `bold 11px ${this.theme.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`DH = ${dH.toFixed(4)} cm`, cx, cy + boreR * 0.45 - 7);
+
+      // 5. Vertical Diameter Dimension line
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - boreR * 0.45, cy - boreR);
+      ctx.lineTo(cx - boreR * 0.45, cy + boreR);
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.moveTo(cx - boreR * 0.45, cy - boreR);
+      ctx.lineTo(cx - boreR * 0.45 - 4, cy - boreR + 8);
+      ctx.lineTo(cx - boreR * 0.45 + 4, cy - boreR + 8);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx - boreR * 0.45, cy + boreR);
+      ctx.lineTo(cx - boreR * 0.45 - 4, cy + boreR - 8);
+      ctx.lineTo(cx - boreR * 0.45 + 4, cy + boreR - 8);
+      ctx.fill();
+
+      ctx.save();
+      ctx.translate(cx - boreR * 0.45 - 8, cy);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`DV = ${dV.toFixed(4)} cm`, 0, 0);
+      ctx.restore();
+
+      // 6. Telemetry Info Card
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.45)';
+      ctx.lineWidth = 1;
+      const boxW = Math.min(380, this.width - 40);
+      const boxH = 50;
+      ctx.strokeRect(20, this.height - boxH - 15, boxW, boxH);
+      ctx.fillRect(20, this.height - boxH - 15, boxW, boxH);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = `bold 11.5px ${this.theme.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`Mean Bore Diameter D = ${meanD.toFixed(4)} cm (${(meanD * 10).toFixed(3)} mm)`, 30, this.height - boxH + 6);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = `11px ${this.theme.fontFamily}`;
+      ctx.fillText(`Internal Radius r = ${r.toFixed(4)} cm  |  Area A = ${(area * 100).toFixed(3)} mm²`, 30, this.height - boxH + 26);
+    }
+
+    drawPrismDevCurve() {
+      const ctx = this.ctx;
+      const data = this.data;
+      const A_deg = data.A || 60.0;
+      const deltaM_deg = data.deltaM || 49.5;
+      const mu = data.mu || 1.633;
+
+      const A_rad = (A_deg * Math.PI) / 180;
+      const simPoints = [];
+      const iMin = 36;
+      const iMax = 78;
+
+      for (let i_deg = iMin; i_deg <= iMax; i_deg += 0.5) {
+        const i_rad = (i_deg * Math.PI) / 180;
+        const sin_r1 = Math.sin(i_rad) / mu;
+        if (sin_r1 > 1) continue;
+        const r1 = Math.asin(sin_r1);
+        const r2 = A_rad - r1;
+        const sin_e = mu * Math.sin(r2);
+        if (sin_e > 1) continue;
+        const e_rad = Math.asin(sin_e);
+        const delta_deg = (i_rad + e_rad - A_rad) * (180 / Math.PI);
+        if (!isNaN(delta_deg) && delta_deg >= 0 && delta_deg <= 90) {
+          simPoints.push({ x: i_deg, y: delta_deg });
+        }
+      }
+
+      this.data.points = simPoints;
+      this.data.xLabel = 'Angle of Incidence i (Degrees °)';
+      this.data.yLabel = 'Angle of Deviation δ (Degrees °)';
+
+      this.computeBounds();
+      this.bounds.minX = 30;
+      this.bounds.maxX = 85;
+      this.bounds.minY = Math.max(30, Math.floor(deltaM_deg - 5));
+      this.bounds.maxY = Math.ceil(deltaM_deg + 25);
+
+      this.drawGrid();
+      this.drawAxes();
+
+      ctx.save();
+      const plotLeft = this.padding.left;
+      const plotRight = this.width - this.padding.right;
+      const plotTop = this.padding.top;
+      const plotBottom = this.height - this.padding.bottom;
+      ctx.beginPath();
+      ctx.rect(plotLeft, plotTop, plotRight - plotLeft, plotBottom - plotTop);
+      ctx.clip();
+
+      ctx.strokeStyle = this.theme.accentCyan;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.5)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      simPoints.forEach((p, idx) => {
+        const px = this.xToPixel(p.x);
+        const py = this.yToPixel(p.y);
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const grad = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.18)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0.01)');
+      ctx.lineTo(this.xToPixel(simPoints[simPoints.length - 1].x), plotBottom);
+      ctx.lineTo(this.xToPixel(simPoints[0].x), plotBottom);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+
+      const i_m = (A_deg + deltaM_deg) / 2;
+      const px_m = this.xToPixel(i_m);
+      const py_m = this.yToPixel(deltaM_deg);
+
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(px_m, plotBottom);
+      ctx.lineTo(px_m, py_m);
+      ctx.lineTo(plotLeft, py_m);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(px_m, py_m, 7, 0, 2 * Math.PI);
+      ctx.fillStyle = '#f59e0b';
+      ctx.shadowColor = 'rgba(245, 158, 11, 0.8)';
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.font = `bold 12px ${this.theme.fontFamily}`;
+      ctx.fillStyle = '#f59e0b';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Minimum: δm = ${deltaM_deg.toFixed(2)}° @ i = ${i_m.toFixed(2)}°`, px_m + 12, py_m - 6);
+
+      ctx.save();
+      const badgeX = plotLeft + 15;
+      const badgeY = plotTop + 15;
+      const text = `i–δ Characteristic Curve   |   Prism Angle A = ${A_deg.toFixed(2)}°   |   Refractive Index µ = ${mu.toFixed(4)}`;
+      const textW = ctx.measureText(text).width;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+      ctx.strokeRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+
+      ctx.fillStyle = this.theme.accentCyan;
+      ctx.fillRect(badgeX, badgeY - 5, 12, 10);
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, badgeX + 20, badgeY);
+      ctx.restore();
+    }
+
+    drawDiffractionPattern() {
+      const ctx = this.ctx;
+      const data = this.data;
+      const d_um = data.d_um || 120;
+      const lambda_nm = data.lambda_nm || 650;
+      const D_mm = data.D_mm || 700;
+      const minima = data.minima || [];
+
+      const plotLeft = this.padding.left;
+      const plotRight = this.width - this.padding.right;
+      const plotTop = this.padding.top;
+      const plotBottom = this.height - this.padding.bottom;
+
+      this.bounds = { minX: -22, maxX: 22, minY: 0, maxY: 1.15 };
+      this.data.xLabel = 'Screen Position x (mm) Relative to Central Peak';
+      this.data.yLabel = 'Relative Diffraction Intensity I / I₀';
+
+      this.drawGrid();
+      this.drawAxes();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(plotLeft, plotTop, plotRight - plotLeft, plotBottom - plotTop);
+      ctx.clip();
+
+      const numPoints = 240;
+      const curvePts = [];
+      const d_m = d_um * 1e-6;
+      const lam_m = lambda_nm * 1e-9;
+      const D_m = D_mm * 1e-3;
+
+      for (let i = 0; i <= numPoints; i++) {
+        const x_mm = -22 + (i / numPoints) * 44;
+        const x_m = x_mm * 1e-3;
+        const beta = (Math.PI * d_m * x_m) / (lam_m * D_m);
+        let I = 0;
+        if (Math.abs(beta) < 1e-5) {
+          I = 1.0;
+        } else {
+          I = Math.pow(Math.sin(beta) / beta, 2);
+        }
+        curvePts.push({ x: x_mm, y: I });
+      }
+
+      ctx.beginPath();
+      curvePts.forEach((p, idx) => {
+        const px = this.xToPixel(p.x);
+        const py = this.yToPixel(p.y);
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+
+      const grad = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
+      grad.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+      grad.addColorStop(0.5, 'rgba(6, 182, 212, 0.2)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0.01)');
+      ctx.lineTo(this.xToPixel(22), plotBottom);
+      ctx.lineTo(this.xToPixel(-22), plotBottom);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(16, 185, 129, 0.6)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      curvePts.forEach((p, idx) => {
+        const px = this.xToPixel(p.x);
+        const py = this.yToPixel(p.y);
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      minima.forEach(m => {
+        const pxPos = this.xToPixel(m.a);
+        const pxNeg = this.xToPixel(-m.a);
+        const pyZero = this.yToPixel(0);
+
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+
+        ctx.beginPath();
+        ctx.moveTo(pxPos, plotBottom);
+        ctx.lineTo(pxPos, plotTop + 40);
+        ctx.moveTo(pxNeg, plotBottom);
+        ctx.lineTo(pxNeg, plotTop + 40);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(pxPos, pyZero, 4, 0, 2 * Math.PI);
+        ctx.arc(pxNeg, pyZero, 4, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.font = `bold 10px ${this.theme.fontFamily}`;
+        ctx.fillStyle = '#fda4af';
+        ctx.textAlign = 'center';
+        ctx.fillText(`m=±${m.m} (${m.a}mm)`, pxPos, plotTop + 34);
+      });
+
+      ctx.restore();
+
+      ctx.save();
+      const badgeX = plotLeft + 15;
+      const badgeY = plotTop + 15;
+      const text = `Fraunhofer Envelope   |   Slit Width d ≈ ${d_um.toFixed(1)} µm   |   Observed Minima (Red)`;
+      const textW = ctx.measureText(text).width;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+      ctx.strokeRect(badgeX - 8, badgeY - 14, textW + 36, 26);
+
+      ctx.fillStyle = this.theme.accentEmerald;
+      ctx.fillRect(badgeX, badgeY - 5, 12, 10);
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, badgeX + 20, badgeY);
+      ctx.restore();
+    }
+
+    drawQuantumBars() {
+      const ctx = this.ctx;
+      const data = this.data;
+      const probs = data.probs || [0.5, 0, 0, 0.5];
+      const stateName = data.stateName || '|Ψ⟩';
+      const concurrence = data.concurrence !== undefined ? data.concurrence : 1.0;
+      const gate = data.gate || 'CNOT';
+      const nature = data.nature || 'Quantum Superposition';
+
+      const labels = ['|00⟩', '|01⟩', '|10⟩', '|11⟩'];
+      const plotLeft = this.padding.left;
+      const plotRight = this.width - this.padding.right;
+      const plotTop = this.padding.top + 30;
+      const plotBottom = this.height - this.padding.bottom;
+      const plotH = plotBottom - plotTop;
+      const plotW = plotRight - plotLeft;
+
+      ctx.font = `bold 14px ${this.theme.fontFamily}`;
+      ctx.fillStyle = this.theme.accentCyan;
+      ctx.textAlign = 'center';
+      ctx.fillText(`Two-Qubit State Probability Distribution: ${stateName}`, this.width / 2, 26);
+
+      ctx.fillStyle = concurrence > 0.5 ? 'rgba(244, 63, 94, 0.15)' : 'rgba(99, 102, 241, 0.15)';
+      ctx.strokeStyle = concurrence > 0.5 ? 'rgba(244, 63, 94, 0.4)' : 'rgba(99, 102, 241, 0.4)';
+      ctx.lineWidth = 1;
+      const infoText = `Active Gate: ${gate}   |   ${nature}   |   Concurrence C = ${concurrence.toFixed(2)}`;
+      ctx.font = `11.5px ${this.theme.fontFamily}`;
+      const infoW = ctx.measureText(infoText).width;
+      ctx.strokeRect((this.width - infoW - 30) / 2, 40, infoW + 30, 24);
+      ctx.fillRect((this.width - infoW - 30) / 2, 40, infoW + 30, 24);
+      ctx.fillStyle = concurrence > 0.5 ? '#fda4af' : '#a5b4fc';
+      ctx.fillText(infoText, this.width / 2, 56);
+
+      ctx.strokeStyle = this.theme.grid;
+      ctx.lineWidth = 1;
+      ctx.font = `11px ${this.theme.fontFamily}`;
+      ctx.fillStyle = this.theme.text;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+
+      for (let p = 0; p <= 1.0; p += 0.25) {
+        const y = plotBottom - p * plotH;
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, y);
+        ctx.lineTo(plotRight, y);
+        ctx.stroke();
+        ctx.fillText(`${Math.round(p * 100)}%`, plotLeft - 8, y);
+      }
+
+      ctx.strokeStyle = this.theme.axis;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(plotLeft, plotBottom);
+      ctx.lineTo(plotRight, plotBottom);
+      ctx.stroke();
+
+      const barSlotW = plotW / 4;
+      const barW = Math.min(60, barSlotW * 0.55);
+
+      probs.forEach((p, idx) => {
+        const bx = plotLeft + idx * barSlotW + (barSlotW - barW) / 2;
+        const bh = Math.max(2, p * plotH);
+        const by = plotBottom - bh;
+
+        const grad = ctx.createLinearGradient(0, by, 0, plotBottom);
+        if (p > 0.05) {
+          grad.addColorStop(0, '#06b6d4');
+          grad.addColorStop(1, '#4f46e5');
+          ctx.fillStyle = grad;
+          ctx.shadowColor = 'rgba(6, 182, 212, 0.5)';
+          ctx.shadowBlur = 10;
+        } else {
+          ctx.fillStyle = 'rgba(51, 65, 85, 0.4)';
+        }
+
+        ctx.fillRect(bx, by, barW, bh);
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = p > 0.05 ? '#38bdf8' : 'rgba(79, 101, 142, 0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx, by, barW, bh);
+
+        ctx.font = `bold 12px ${this.theme.fontFamily}`;
+        ctx.fillStyle = p > 0.05 ? '#38bdf8' : '#64748b';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${(p * 100).toFixed(1)}%`, bx + barW / 2, by - 6);
+
+        ctx.font = `bold 13px ${this.theme.fontFamily}`;
+        ctx.fillStyle = '#f8fafc';
+        ctx.textBaseline = 'top';
+        ctx.fillText(labels[idx], bx + barW / 2, plotBottom + 10);
+      });
     }
 
     drawBlochSphere() {
@@ -1317,8 +2111,8 @@
       // Angle indicator
       ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
       ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
-      ctx.strokeRect(20, 20, 180, 52);
-      ctx.fillRect(20, 20, 180, 52);
+      ctx.strokeRect(20, 20, 190, 52);
+      ctx.fillRect(20, 20, 190, 52);
       ctx.fillStyle = '#e2e8f0';
       ctx.font = `11.5px ${this.theme.fontFamily}`;
       ctx.textAlign = 'left';
@@ -1576,6 +2370,41 @@
           ctx.stroke();
         }
       });
+
+      // Highlight MPP (Maximum Power Point) if available (Solar Cell)
+      if (this.data.mpp && this.data.mpp.P > 0) {
+        const mpp = this.data.mpp;
+        const px = this.xToPixel(mpp.V);
+        const pyP = this.yToPixel(mpp.P);
+        const pyI = this.yToPixel(mpp.I);
+        const plotBottom = this.height - this.padding.bottom;
+
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(px, plotBottom);
+        ctx.lineTo(px, Math.min(pyP, pyI));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Star marker at MPP
+        ctx.beginPath();
+        ctx.arc(px, pyP, 7, 0, 2 * Math.PI);
+        ctx.fillStyle = '#f59e0b';
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.8)';
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.font = `bold 11px ${this.theme.fontFamily}`;
+        ctx.fillStyle = '#f59e0b';
+        ctx.textAlign = 'left';
+        ctx.fillText(`MPP: ${mpp.P.toFixed(1)} mW (${mpp.V.toFixed(2)} V, ${mpp.I.toFixed(1)} mA)`, px + 10, pyP - 4);
+      }
     }
 
     drawLegend() {
@@ -1643,20 +2472,22 @@
         }
       }
 
-      this.hoverPoint = closest;
-      this.render();
+      if (closest) {
+        this.hoverPoint = closest;
+        this.render();
 
-      if (closest && this.tooltip) {
-        const reg = this.data.regression;
         let fitText = '';
-        if (reg && reg.isValid) {
-          const yFit = reg.slope * closest.x + reg.intercept;
-          const res = closest.y - yFit;
-          fitText = `<div>Fit ŷ: <b>${this.formatTick(yFit)}</b></div><div>Residual: <b>${this.formatTick(res)}</b></div>`;
+        if (this.data.regression && this.data.regression.isValid) {
+          const yFit = this.data.regression.slope * closest.x + this.data.regression.intercept;
+          const residual = closest.y - yFit;
+          fitText = `
+            <div>ŷ (Fit): <b>${this.formatTick(yFit)}</b></div>
+            <div>Residual: <b style="color:${residual >= 0 ? '#34d399' : '#f43f5e'}">${residual >= 0 ? '+' : ''}${this.formatTick(residual)}</b></div>
+          `;
         }
 
         this.tooltip.innerHTML = `
-          <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">Observation Point</div>
+          ${closest.label ? `<div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">${closest.label}</div>` : ''}
           <div>X: <b>${this.formatTick(closest.x)}</b></div>
           <div>Y: <b>${this.formatTick(closest.y)}</b></div>
           ${fitText}
@@ -1959,6 +2790,7 @@
     }
   };
 
+
   // ==========================================
   // 6. APPLICATION CONTROLLER
   // ==========================================
@@ -1984,6 +2816,7 @@
       this.expTitleEl = document.getElementById('exp-title');
       this.expCategoryEl = document.getElementById('exp-category');
       this.expCategoryBadgeEl = document.getElementById('exp-category-badge');
+      this.expCategoryTagEl = document.getElementById('exp-category-tag');
       this.expAimEl = document.getElementById('exp-aim');
       this.expApparatusEl = document.getElementById('exp-apparatus');
       this.expFormulaEl = document.getElementById('exp-formula');
@@ -2073,31 +2906,36 @@
     loadExperiment(expId) {
       this.currentExpId = expId;
       this.currentExp = getExperimentById(expId);
+      this.state = StorageEngine.getExperimentState(expId, this.currentExp);
       StorageEngine.setActiveExperimentId(expId);
 
-      this.state = StorageEngine.getExperimentState(expId, this.currentExp);
-
-      document.querySelectorAll('.sidebar-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.id === expId);
-      });
-
-      this.expTitleEl.textContent = this.currentExp.title;
-      this.expCategoryEl.textContent = this.currentExp.category;
-      this.expCategoryBadgeEl.textContent = this.currentExp.categoryShort;
-      this.expAimEl.textContent = this.currentExp.aim;
-      this.expApparatusEl.textContent = this.currentExp.apparatus;
-      this.expFormulaEl.textContent = this.currentExp.formula;
-      this.expTheoryEl.textContent = this.currentExp.theory;
-
+      this.updateHeader();
       this.renderGlobals();
       this.renderTable();
       this.recalculateAndRender();
+
+      const items = this.sidebarListEl.querySelectorAll('.sidebar-item');
+      items.forEach(el => {
+        el.classList.toggle('active', el.dataset.id === expId);
+      });
+    }
+
+    updateHeader() {
+      const exp = this.currentExp;
+      if (this.expTitleEl) this.expTitleEl.textContent = exp.title;
+      if (this.expCategoryEl) this.expCategoryEl.textContent = exp.category;
+      if (this.expCategoryBadgeEl) this.expCategoryBadgeEl.textContent = exp.categoryShort;
+      if (this.expCategoryTagEl) this.expCategoryTagEl.textContent = exp.category;
+      if (this.expAimEl) this.expAimEl.textContent = exp.aim;
+      if (this.expApparatusEl) this.expApparatusEl.textContent = exp.apparatus;
+      if (this.expFormulaEl) this.expFormulaEl.textContent = exp.formula;
+      if (this.expTheoryEl) this.expTheoryEl.textContent = exp.theory;
     }
 
     renderGlobals() {
       this.globalsContainerEl.innerHTML = '';
-      const globals = this.currentExp.globals || {};
-      const keys = Object.keys(globals);
+      const defs = this.currentExp.globals || {};
+      const keys = Object.keys(defs);
 
       if (keys.length === 0) {
         this.globalsContainerEl.style.display = 'none';
@@ -2106,7 +2944,7 @@
 
       this.globalsContainerEl.style.display = 'grid';
       keys.forEach(key => {
-        const def = globals[key];
+        const def = defs[key];
         if (typeof def !== 'object' || !def.label) return;
 
         const card = document.createElement('div');
@@ -2161,42 +2999,31 @@
 
       this.currentExp.columns.forEach(col => {
         const th = document.createElement('th');
-        th.className = col.type === 'computed' ? 'th-computed' : 'th-input';
+        th.className = col.type === 'input' ? 'th-input' : 'th-computed';
 
-        let unitSelectorHtml = '';
-        if (col.unitOptions && col.unitOptions.length > 1) {
-          const activeUnit = this.state.units[col.id] || col.unit;
-          unitSelectorHtml = `
-            <select class="th-unit-select" data-col="${col.id}">
-              ${col.unitOptions.map(u => `<option value="${u}" ${u === activeUnit ? 'selected' : ''}>${u}</option>`).join('')}
-            </select>
-          `;
-        } else if (col.unit) {
-          unitSelectorHtml = `<span class="th-unit-badge">${col.unit}</span>`;
+        const content = document.createElement('div');
+        content.className = 'th-content';
+
+        const title = document.createElement('span');
+        title.className = 'th-title';
+        title.textContent = col.label;
+        content.appendChild(title);
+
+        if (col.unit) {
+          const unitBadge = document.createElement('span');
+          unitBadge.className = 'th-unit-badge';
+          unitBadge.textContent = col.unit;
+          content.appendChild(unitBadge);
         }
 
-        th.innerHTML = `
-          <div class="th-content">
-            <span class="th-title">${col.label}</span>
-            ${unitSelectorHtml}
-          </div>
-        `;
-
-        const select = th.querySelector('.th-unit-select');
-        if (select) {
-          select.addEventListener('change', (e) => {
-            this.state.units[col.id] = e.target.value;
-            this.recalculateAndRender();
-          });
-        }
-
+        th.appendChild(content);
         this.tableHeaderEl.appendChild(th);
       });
 
       const thAction = document.createElement('th');
       thAction.style.width = '48px';
       thAction.style.textAlign = 'center';
-      thAction.innerHTML = '<i class="fas fa-trash-alt text-slate-500"></i>';
+      thAction.textContent = 'Act';
       this.tableHeaderEl.appendChild(thAction);
 
       this.renderTableBody();
@@ -2231,6 +3058,20 @@
               const val = e.target.value.trim();
               this.state.rows[rowIdx][col.id] = val === '' ? '' : (isNaN(Number(val)) ? val : parseFloat(val));
               this.recalculateAndRender();
+            });
+
+            // Keyboard navigation
+            input.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const nextRow = tr.nextElementSibling;
+                if (nextRow) {
+                  const targetInput = nextRow.querySelectorAll('.cell-input')[0];
+                  if (targetInput) targetInput.focus();
+                } else {
+                  this.addRowBtn.click();
+                }
+              }
             });
 
             td.appendChild(input);
@@ -2386,9 +3227,83 @@
         });
       }
 
+      // Backdrop click-to-close modals
+      [this.reportModal, this.pasteModal].forEach(modal => {
+        if (!modal) return;
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.classList.remove('active');
+          }
+        });
+      });
+
+      // Modal close 'x' buttons
+      const closeReportBtn = document.getElementById('btn-close-report');
+      if (closeReportBtn) {
+        closeReportBtn.addEventListener('click', () => {
+          if (this.reportModal) this.reportModal.classList.remove('active');
+        });
+      }
+      const closePasteBtn = document.getElementById('btn-close-paste');
+      if (closePasteBtn) {
+        closePasteBtn.addEventListener('click', () => {
+          if (this.pasteModal) this.pasteModal.classList.remove('active');
+        });
+      }
+
+      // Modal Cancel Buttons
+      const cancelReportBtn = document.getElementById('btn-cancel-report');
+      if (cancelReportBtn) {
+        cancelReportBtn.addEventListener('click', () => {
+          if (this.reportModal) this.reportModal.classList.remove('active');
+        });
+      }
+      const cancelPasteBtn = document.getElementById('btn-cancel-paste');
+      if (cancelPasteBtn) {
+        cancelPasteBtn.addEventListener('click', () => {
+          if (this.pasteModal) this.pasteModal.classList.remove('active');
+        });
+      }
+
+      // Modal Confirm Buttons
+      const confirmPasteBtn = document.getElementById('btn-confirm-paste');
+      if (confirmPasteBtn) {
+        confirmPasteBtn.addEventListener('click', () => {
+          const textarea = document.getElementById('paste-textarea');
+          const text = textarea ? textarea.value : '';
+          const parsed = ExportEngine.parseClipboardData(text, this.currentExp);
+          if (parsed.length > 0) {
+            this.state.rows = parsed;
+            this.renderTableBody();
+            this.recalculateAndRender();
+            if (this.pasteModal) this.pasteModal.classList.remove('active');
+          } else {
+            alert('Could not detect observation data. Please ensure numbers match the input columns.');
+          }
+        });
+      }
+
+      const confirmReportBtn = document.getElementById('btn-confirm-report');
+      if (confirmReportBtn) {
+        confirmReportBtn.addEventListener('click', () => {
+          const studentName = document.getElementById('report-student-name').value || 'Student Name';
+          const regNo = document.getElementById('report-reg-no').value || '24BCE1001';
+          const labSlot = document.getElementById('report-lab-slot').value || 'L25+L26';
+          const classNo = document.getElementById('report-class-no').value || 'CHAMP-01';
+
+          if (this.reportModal) this.reportModal.classList.remove('active');
+          this.triggerReportGeneration({ studentName, regNo, labSlot, classNo });
+        });
+      }
+
+      // Global keyboard shortcuts
       window.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
           this.addRowBtn.click();
+        }
+        if (e.key === 'Escape') {
+          if (this.reportModal) this.reportModal.classList.remove('active');
+          if (this.pasteModal) this.pasteModal.classList.remove('active');
         }
       });
     }
@@ -2399,38 +3314,8 @@
       const textarea = document.getElementById('paste-textarea');
       if (textarea) {
         textarea.value = '';
-        textarea.focus();
+        setTimeout(() => textarea.focus(), 50);
       }
-
-      const confirmBtn = document.getElementById('btn-confirm-paste');
-      const cancelBtn = document.getElementById('btn-cancel-paste');
-
-      const handleConfirm = () => {
-        const text = textarea ? textarea.value : '';
-        const parsed = ExportEngine.parseClipboardData(text, this.currentExp);
-        if (parsed.length > 0) {
-          this.state.rows = parsed;
-          this.renderTableBody();
-          this.recalculateAndRender();
-          this.pasteModal.classList.remove('active');
-        } else {
-          alert('Could not detect observation data. Please ensure numbers match the input columns.');
-        }
-        cleanup();
-      };
-
-      const handleCancel = () => {
-        this.pasteModal.classList.remove('active');
-        cleanup();
-      };
-
-      const cleanup = () => {
-        confirmBtn.removeEventListener('click', handleConfirm);
-        cancelBtn.removeEventListener('click', handleCancel);
-      };
-
-      confirmBtn.addEventListener('click', handleConfirm);
-      cancelBtn.addEventListener('click', handleCancel);
     }
 
     openReportModal() {
@@ -2438,34 +3323,7 @@
         this.triggerReportGeneration({});
         return;
       }
-
       this.reportModal.classList.add('active');
-      const confirmBtn = document.getElementById('btn-confirm-report');
-      const cancelBtn = document.getElementById('btn-cancel-report');
-
-      const handleConfirm = () => {
-        const studentName = document.getElementById('report-student-name').value || 'Student Name';
-        const regNo = document.getElementById('report-reg-no').value || '24BCE1001';
-        const labSlot = document.getElementById('report-lab-slot').value || 'L25+L26';
-        const classNo = document.getElementById('report-class-no').value || 'CHAMP-01';
-
-        this.reportModal.classList.remove('active');
-        this.triggerReportGeneration({ studentName, regNo, labSlot, classNo });
-        cleanup();
-      };
-
-      const handleCancel = () => {
-        this.reportModal.classList.remove('active');
-        cleanup();
-      };
-
-      const cleanup = () => {
-        confirmBtn.removeEventListener('click', handleConfirm);
-        cancelBtn.removeEventListener('click', handleCancel);
-      };
-
-      confirmBtn.addEventListener('click', handleConfirm);
-      cancelBtn.addEventListener('click', handleCancel);
     }
 
     triggerReportGeneration(meta) {
