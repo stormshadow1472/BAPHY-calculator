@@ -38,13 +38,12 @@ export class ExportEngine {
     const inputCols = experiment.columns.filter(c => c.type === 'input');
     const parsedRows = [];
 
-    for (let line of lines) {
-      line = line.trim();
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
       if (!line) continue;
       const delimiter = line.includes('\t') ? '\t' : ',';
       const parts = line.split(delimiter).map(s => s.trim().replace(/^"|"$/g, ''));
-      const isHeader = parts.some(p => isNaN(parseFloat(p)) && p.length > 0 && !/^[-+]?[0-9]*\.?[0-9]+/.test(p));
-      if (isHeader) continue;
+      if (i === 0 && parts.every(p => isNaN(parseFloat(p)))) continue;
 
       const rowObj = {};
       inputCols.forEach((col, idx) => {

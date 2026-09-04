@@ -387,7 +387,7 @@
       units: {},
       columns: [
         { id: 'voltage', label: 'Voltage (V)', unit: 'kV', type: 'input' },
-        { id: 'ring_type', label: 'Ring Plane', type: 'input' },
+        { id: 'ring_type', label: 'Ring Plane', type: 'input', inputType: 'text', placeholder: 'Inner / Outer ring' },
         { id: 'diameter', label: 'Diameter (D)', unit: 'mm', type: 'input' },
         { id: 'theta_deg', label: 'Angle θ', unit: '°', type: 'computed' },
         { id: 'lambda_bragg', label: 'λ_Bragg', unit: 'pm', type: 'computed' },
@@ -1009,12 +1009,13 @@
       rows.forEach((row, i) => {
         const V_kV = parseFloat(row.voltage);
         const D_mm = parseFloat(row.diameter);
-        const ringType = (row.ring_type || '').toLowerCase();
+        const ringType = String(row.ring_type || '').toLowerCase().trim();
 
         if (!isNaN(V_kV) && !isNaN(D_mm) && V_kV > 0 && D_mm > 0) {
           const V = V_kV * 1000;
           const D_m = D_mm * 1e-3;
-          const d_m = ringType.includes('outer') || ringType.includes('123') ? d1_m : d2_m;
+          const isOuter = ringType.includes('outer') || ringType.includes('123') || ringType.includes('d1') || ringType === 'o' || (ringType === '' && i % 2 === 1);
+          const d_m = isOuter ? d1_m : d2_m;
 
           const theta = 0.5 * Math.atan(D_m / (2 * L_m));
           const lambdaBragg = 2 * d_m * Math.sin(theta);
@@ -2608,13 +2609,12 @@
       const inputCols = experiment.columns.filter(c => c.type === 'input');
       const parsedRows = [];
 
-      for (let line of lines) {
-        line = line.trim();
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
         if (!line) continue;
         const delimiter = line.includes('\t') ? '\t' : ',';
         const parts = line.split(delimiter).map(s => s.trim().replace(/^"|"$/g, ''));
-        const isHeader = parts.some(p => isNaN(parseFloat(p)) && p.length > 0 && !/^[-+]?[0-9]*\.?[0-9]+/.test(p));
-        if (isHeader) continue;
+        if (i === 0 && parts.every(p => isNaN(parseFloat(p)))) continue;
 
         const rowObj = {};
         inputCols.forEach((col, idx) => {
@@ -3051,15 +3051,21 @@
           if (col.type === 'input') {
             td.className = 'td-input';
             const input = document.createElement('input');
-            input.type = typeof row[col.id] === 'string' && isNaN(Number(row[col.id])) ? 'text' : 'number';
+            const TEXT_COLUMNS = ['ring_type', 'dimension', 'trial', 'face', 'color', 'label', 'input_state'];
+            const isTextCol = col.inputType === 'text' || TEXT_COLUMNS.includes(col.id);
+            input.type = isTextCol ? 'text' : 'number';
             input.className = 'cell-input';
-            input.step = 'any';
+            if (!isTextCol) input.step = 'any';
             input.value = row[col.id] !== undefined ? row[col.id] : '';
-            input.placeholder = '—';
+            input.placeholder = isTextCol ? (col.placeholder || (col.id === 'ring_type' ? 'Inner / Outer ring' : '—')) : '—';
+
+            if (col.id === 'ring_type') {
+              input.setAttribute('list', 'ring-type-options');
+            }
 
             input.addEventListener('input', (e) => {
-              const val = e.target.value.trim();
-              this.state.rows[rowIdx][col.id] = val === '' ? '' : (isNaN(Number(val)) ? val : parseFloat(val));
+              const val = e.target.value;
+              this.state.rows[rowIdx][col.id] = isTextCol ? val : (val.trim() === '' ? '' : (isNaN(Number(val)) ? val.trim() : parseFloat(val)));
               this.recalculateAndRender();
             });
 

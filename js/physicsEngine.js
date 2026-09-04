@@ -602,12 +602,13 @@ export const EXPERIMENT_CALCULATORS = {
       rows.forEach((row, i) => {
         const V_kV = parseFloat(row.voltage);
         const D_mm = parseFloat(row.diameter);
-        const ringType = (row.ring_type || '').toLowerCase();
+        const ringType = String(row.ring_type || '').toLowerCase().trim();
 
         if (!isNaN(V_kV) && !isNaN(D_mm) && V_kV > 0 && D_mm > 0) {
           const V = V_kV * 1000;
           const D_m = D_mm * 1e-3;
-          const d_m = ringType.includes('outer') || ringType.includes('123') ? d1_m : d2_m;
+          const isOuter = ringType.includes('outer') || ringType.includes('123') || ringType.includes('d1') || ringType === 'o' || (ringType === '' && i % 2 === 1);
+          const d_m = isOuter ? d1_m : d2_m;
 
           const theta = 0.5 * Math.atan(D_m / (2 * L_m));
           const lambdaBragg = 2 * d_m * Math.sin(theta);

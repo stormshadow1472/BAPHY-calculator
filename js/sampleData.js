@@ -296,7 +296,7 @@ export const EXPERIMENTS_REGISTRY = [
     units: {},
     columns: [
       { id: 'voltage', label: 'Voltage (V)', unit: 'kV', type: 'input' },
-      { id: 'ring_type', label: 'Ring Plane', type: 'input' },
+      { id: 'ring_type', label: 'Ring Plane', type: 'input', inputType: 'text', placeholder: 'Inner / Outer ring' },
       { id: 'diameter', label: 'Diameter (D)', unit: 'mm', type: 'input' },
       { id: 'theta_deg', label: 'Angle θ', unit: '°', type: 'computed' },
       { id: 'lambda_bragg', label: 'λ_Bragg', unit: 'pm', type: 'computed' },

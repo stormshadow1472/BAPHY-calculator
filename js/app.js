@@ -263,15 +263,21 @@ class PhysicsLabApp {
           if (col.type === 'input') {
             td.className = 'td-input';
             const input = document.createElement('input');
-            input.type = typeof row[col.id] === 'string' && isNaN(Number(row[col.id])) ? 'text' : 'number';
+            const TEXT_COLUMNS = ['ring_type', 'dimension', 'trial', 'face', 'color', 'label', 'input_state'];
+            const isTextCol = col.inputType === 'text' || TEXT_COLUMNS.includes(col.id);
+            input.type = isTextCol ? 'text' : 'number';
             input.className = 'cell-input';
-            input.step = 'any';
+            if (!isTextCol) input.step = 'any';
             input.value = row[col.id] !== undefined ? row[col.id] : '';
-            input.placeholder = '—';
+            input.placeholder = isTextCol ? (col.placeholder || (col.id === 'ring_type' ? 'Inner / Outer ring' : '—')) : '—';
+
+            if (col.id === 'ring_type') {
+              input.setAttribute('list', 'ring-type-options');
+            }
 
             input.addEventListener('input', (e) => {
-              const val = e.target.value.trim();
-              this.state.rows[rowIdx][col.id] = val === '' ? '' : (isNaN(Number(val)) ? val : parseFloat(val));
+              const val = e.target.value;
+              this.state.rows[rowIdx][col.id] = isTextCol ? val : (val.trim() === '' ? '' : (isNaN(Number(val)) ? val.trim() : parseFloat(val)));
               this.recalculateAndRender();
             });
 
