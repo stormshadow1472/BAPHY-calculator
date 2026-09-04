@@ -269,7 +269,7 @@ class PhysicsLabApp {
             input.className = 'cell-input';
             if (!isTextCol) input.step = 'any';
             input.value = row[col.id] !== undefined ? row[col.id] : '';
-            input.placeholder = isTextCol ? (col.placeholder || (col.id === 'ring_type' ? 'Inner / Outer ring' : '—')) : '—';
+            input.placeholder = isTextCol ? (col.placeholder || (col.id === 'ring_type' ? 'Inner Ring / Outer Ring' : '—')) : '—';
 
             if (col.id === 'ring_type') {
               input.setAttribute('list', 'ring-type-options');

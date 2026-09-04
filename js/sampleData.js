@@ -296,19 +296,19 @@ export const EXPERIMENTS_REGISTRY = [
     units: {},
     columns: [
       { id: 'voltage', label: 'Voltage (V)', unit: 'kV', type: 'input' },
-      { id: 'ring_type', label: 'Ring Plane', type: 'input', inputType: 'text', placeholder: 'Inner / Outer ring' },
+      { id: 'ring_type', label: 'Ring Plane', type: 'input', inputType: 'text', placeholder: 'Inner Ring / Outer Ring' },
       { id: 'diameter', label: 'Diameter (D)', unit: 'mm', type: 'input' },
       { id: 'theta_deg', label: 'Angle θ', unit: '°', type: 'computed' },
       { id: 'lambda_bragg', label: 'λ_Bragg', unit: 'pm', type: 'computed' },
       { id: 'lambda_db', label: 'λ_deBroglie', unit: 'pm', type: 'computed' }
     ],
     defaultRows: [
-      { voltage: 3.0, ring_type: 'Inner (d=213pm)', diameter: 28.4 },
-      { voltage: 3.0, ring_type: 'Outer (d=123pm)', diameter: 48.8 },
-      { voltage: 4.0, ring_type: 'Inner (d=213pm)', diameter: 24.6 },
-      { voltage: 4.0, ring_type: 'Outer (d=123pm)', diameter: 42.4 },
-      { voltage: 5.0, ring_type: 'Inner (d=213pm)', diameter: 22.0 },
-      { voltage: 5.0, ring_type: 'Outer (d=123pm)', diameter: 38.0 }
+      { voltage: 3.0, ring_type: 'Inner Ring', diameter: 28.4 },
+      { voltage: 3.0, ring_type: 'Outer Ring', diameter: 48.8 },
+      { voltage: 4.0, ring_type: 'Inner Ring', diameter: 24.6 },
+      { voltage: 4.0, ring_type: 'Outer Ring', diameter: 42.4 },
+      { voltage: 5.0, ring_type: 'Inner Ring', diameter: 22.0 },
+      { voltage: 5.0, ring_type: 'Outer Ring', diameter: 38.0 }
     ]
   },
 
