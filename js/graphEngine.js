@@ -74,7 +74,10 @@ export class ScientificGraph {
       }
 
       const ctx = this.ctx;
-      ctx.fillStyle = this.theme.bg;
+      const bgGrad = ctx.createRadialGradient(this.width / 2, this.height / 2, 20, this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.75);
+      bgGrad.addColorStop(0, '#0c162e');
+      bgGrad.addColorStop(1, '#050814');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, this.width, this.height);
 
       if (!this.data) {

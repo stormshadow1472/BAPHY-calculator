@@ -1341,7 +1341,10 @@
       }
 
       const ctx = this.ctx;
-      ctx.fillStyle = this.theme.bg;
+      const bgGrad = ctx.createRadialGradient(this.width / 2, this.height / 2, 20, this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.75);
+      bgGrad.addColorStop(0, '#0c162e');
+      bgGrad.addColorStop(1, '#050814');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, this.width, this.height);
 
       if (!this.data) {
@@ -2855,9 +2858,9 @@
       const query = (this.searchBarEl ? this.searchBarEl.value.toLowerCase().trim() : '');
 
       const categories = [
-        { id: 1, name: 'Preparatory Tools', sub: 'Tools I to IV' },
-        { id: 2, name: 'CHAMP Cycle 1', sub: 'Semiconductors & Optics (Expt 1-4)' },
-        { id: 3, name: 'CHAMP Cycle 2', sub: 'Quantum & Quantum Computing (Expt 5-8)' }
+        { id: 1, name: 'Preparatory Tools', sub: 'Tools I to IV', themeClass: 'cat-cyan' },
+        { id: 2, name: 'CHAMP Cycle 1', sub: 'Semiconductors & Optics (Expt 1-4)', themeClass: 'cat-emerald' },
+        { id: 3, name: 'CHAMP Cycle 2', sub: 'Quantum & Quantum Computing (Expt 5-8)', themeClass: 'cat-fuchsia' }
       ];
 
       categories.forEach(cat => {
@@ -2872,7 +2875,7 @@
         if (catExps.length === 0) return;
 
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'sidebar-category-header';
+        groupHeader.className = `sidebar-category-header ${cat.themeClass}`;
         groupHeader.innerHTML = `
           <div class="cat-title"><i class="fas fa-layer-group"></i> ${cat.name}</div>
           <div class="cat-sub">${cat.sub}</div>

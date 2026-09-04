@@ -70,9 +70,9 @@ class PhysicsLabApp {
       const query = (this.searchBarEl ? this.searchBarEl.value.toLowerCase().trim() : '');
 
       const categories = [
-        { id: 1, name: 'Preparatory Tools', sub: 'Tools I to IV' },
-        { id: 2, name: 'CHAMP Cycle 1', sub: 'Semiconductors & Optics (Expt 1-4)' },
-        { id: 3, name: 'CHAMP Cycle 2', sub: 'Quantum & Quantum Computing (Expt 5-8)' }
+        { id: 1, name: 'Preparatory Tools', sub: 'Tools I to IV', themeClass: 'cat-cyan' },
+        { id: 2, name: 'CHAMP Cycle 1', sub: 'Semiconductors & Optics (Expt 1-4)', themeClass: 'cat-emerald' },
+        { id: 3, name: 'CHAMP Cycle 2', sub: 'Quantum & Quantum Computing (Expt 5-8)', themeClass: 'cat-fuchsia' }
       ];
 
       categories.forEach(cat => {
@@ -87,7 +87,7 @@ class PhysicsLabApp {
         if (catExps.length === 0) return;
 
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'sidebar-category-header';
+        groupHeader.className = `sidebar-category-header ${cat.themeClass}`;
         groupHeader.innerHTML = `
           <div class="cat-title"><i class="fas fa-layer-group"></i> ${cat.name}</div>
           <div class="cat-sub">${cat.sub}</div>
